@@ -1,169 +1,151 @@
 /*
- * Swanky Tools™ Universal Chat Widget (v1.1.0)
- * Lightweight, embeddable, customizable chat widget that connects to any webhook.
+ * Swanky Tools™ Universal Chat Widget (v1.0.1)
+ * MIT License – Use it, customize it, ship it!
  * Author: SwankyTools™
- * License: MIT
  */
 
 (function () {
   const config = window.ChatWidgetConfig || {};
-  const webhookInfo = config.webhook || {};
+  const webhookUrl = config.webhook?.url || '';
   const branding = config.branding || {};
   const style = config.style || {};
   const suggestions = config.suggestions || [];
 
-  if (!webhookInfo.url) {
+  if (!webhookUrl) {
     console.error('[ChatWidget] Missing webhook URL in ChatWidgetConfig');
     return;
   }
 
-  // Inject styles
+  // Inject CSS styles
   const styleEl = document.createElement('style');
   styleEl.textContent = `
-    #swanky-chat-button {
+    .swanky-chat-button {
       position: fixed;
       ${style.position === 'left' ? 'left' : 'right'}: 20px;
       bottom: 20px;
-      background-color: ${style.primaryColor || '#10b981'};
-      color: white;
-      border: none;
-      border-radius: 30px;
-      padding: 12px 20px;
-      font-size: 16px;
-      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-      cursor: pointer;
       z-index: 9999;
+      background-color: ${style.primaryColor || '#10b981'};
+      color: #fff;
+      padding: 12px 18px;
+      border-radius: 50px;
+      font-size: 15px;
+      border: none;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-family: sans-serif;
     }
     .swanky-chat-window {
       position: fixed;
-      ${style.position === 'left' ? 'left' : 'right'}: 20px;
       bottom: 80px;
+      ${style.position === 'left' ? 'left' : 'right'}: 20px;
       width: 320px;
       height: 400px;
       background-color: ${style.backgroundColor || '#ffffff'};
-      border: 1px solid ${style.borderColor || '#e5e7eb'};
-      border-radius: 10px;
-      box-shadow: 0 10px 20px rgba(0,0,0,0.1);
-      font-family: sans-serif;
+      border-radius: 12px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.2);
       display: none;
       flex-direction: column;
-      z-index: 9999;
+      overflow: hidden;
+      z-index: 10000;
+      font-family: sans-serif;
     }
     .swanky-chat-header {
       background-color: ${style.secondaryColor || '#059669'};
-      color: ${style.fontColor || '#ffffff'};
-      padding: 10px;
+      color: ${style.fontColor || '#fff'};
+      padding: 10px 16px;
       font-weight: bold;
-      font-size: 16px;
     }
     .swanky-chat-body {
       flex: 1;
       padding: 10px;
       overflow-y: auto;
-      background: #f9fafb;
       font-size: 14px;
+      color: ${style.fontColor || '#1f2937'};
     }
     .swanky-chat-input {
       display: flex;
-      padding: 10px;
-      border-top: 1px solid #e5e7eb;
+      border-top: 1px solid #ccc;
     }
     .swanky-chat-input input {
       flex: 1;
-      padding: 8px;
-      border: 1px solid #d1d5db;
-      border-radius: 5px;
+      border: none;
+      padding: 10px;
+      font-size: 14px;
+      outline: none;
     }
     .swanky-chat-input button {
-      margin-left: 8px;
-      padding: 8px 12px;
       background-color: ${style.primaryColor || '#10b981'};
-      color: white;
       border: none;
-      border-radius: 5px;
+      color: #fff;
+      padding: 10px 16px;
       cursor: pointer;
     }
     .swanky-chat-message {
-      margin: 6px 0;
+      margin: 5px 0;
     }
     .swanky-chat-message.user {
       text-align: right;
-      color: ${style.primaryColor || '#10b981'};
-    }
-    .swanky-chat-message.bot {
-      text-align: left;
-      color: #374151;
     }
   `;
   document.head.appendChild(styleEl);
 
-  // Create button
+  // Create chat button
   const button = document.createElement('button');
-  button.id = 'swanky-chat-button';
-  button.innerHTML = branding.buttonText || '💬 Need help?';
+  button.className = 'swanky-chat-button';
+  button.innerHTML = `<img src="${branding.logo || ''}" alt="logo" style="width:20px;height:20px;border-radius:50%;"> ${branding.buttonText || '💬 Chat'}`;
   document.body.appendChild(button);
 
   // Create chat window
   const chatWindow = document.createElement('div');
   chatWindow.className = 'swanky-chat-window';
   chatWindow.innerHTML = `
-    <div class="swanky-chat-header">${branding.welcomeText || 'Welcome!'}</div>
-    <div class="swanky-chat-body" id="swanky-chat-body">
-      <div class="swanky-chat-message bot">${branding.responseTimeText || 'Ask us anything below 👇'}</div>
+    <div class="swanky-chat-header">${branding.name || 'ChatBot'}</div>
+    <div class="swanky-chat-body" id="chatBody">
+      <div class="swanky-chat-message">${branding.welcomeText || 'Hi! How can I help you?'}</div>
     </div>
     <div class="swanky-chat-input">
-      <input type="text" id="swanky-chat-input" placeholder="Type a message..." />
-      <button id="swanky-send-btn">Send</button>
+      <input type="text" id="chatInput" placeholder="Type your message..." />
+      <button id="chatSendBtn">Send</button>
     </div>
   `;
   document.body.appendChild(chatWindow);
 
-  // Show/hide chat
+  // Event handlers
   button.onclick = () => {
     chatWindow.style.display = chatWindow.style.display === 'none' ? 'flex' : 'none';
   };
 
-  // Message send logic
-  const input = chatWindow.querySelector('#swanky-chat-input');
-  const sendBtn = chatWindow.querySelector('#swanky-send-btn');
-  const body = chatWindow.querySelector('#swanky-chat-body');
-
-  async function sendMessage() {
-    const message = input.value.trim();
-    if (!message) return;
-
-    appendMessage('user', message);
+  document.getElementById('chatSendBtn').onclick = async () => {
+    const input = document.getElementById('chatInput');
+    const msg = input.value.trim();
+    if (!msg) return;
+    const chatBody = document.getElementById('chatBody');
+    const msgEl = document.createElement('div');
+    msgEl.className = 'swanky-chat-message user';
+    msgEl.innerText = msg;
+    chatBody.appendChild(msgEl);
     input.value = '';
 
     try {
-      const response = await fetch(webhookInfo.url, {
+      const res = await fetch(webhookUrl, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          route: webhookInfo.route || 'default',
-          message
-        })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: msg })
       });
-
-      const result = await response.json();
-      appendMessage('bot', result.output || 'Sorry, something went wrong.');
+      const json = await res.json();
+      const botRes = document.createElement('div');
+      botRes.className = 'swanky-chat-message';
+      botRes.innerText = json.output || 'Sorry, I couldn’t understand.';
+      chatBody.appendChild(botRes);
     } catch (e) {
-      appendMessage('bot', '⚠️ Error reaching server.');
+      const botRes = document.createElement('div');
+      botRes.className = 'swanky-chat-message';
+      botRes.innerText = '⚠️ Could not connect to AI.';
+      chatBody.appendChild(botRes);
     }
-  }
-
-  function appendMessage(sender, text) {
-    const msg = document.createElement('div');
-    msg.className = `swanky-chat-message ${sender}`;
-    msg.textContent = text;
-    body.appendChild(msg);
-    body.scrollTop = body.scrollHeight;
-  }
-
-  sendBtn.onclick = sendMessage;
-  input.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') sendMessage();
-  });
+    chatBody.scrollTop = chatBody.scrollHeight;
+  };
 })();
